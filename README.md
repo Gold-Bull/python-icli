@@ -1,1 +1,1 @@
-# python-icli
+# Interactive CLI for Python
