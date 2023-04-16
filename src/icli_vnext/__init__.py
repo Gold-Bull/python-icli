@@ -75,9 +75,15 @@ class ShellCommandExecutor(AbstractCommandExecutor):
 
 class ChainCommandExecutor(AbstractCommandExecutor):
 
-    def __init__(self, executors: typing.List[AbstractCommandExecutor] | None = None) -> None:
+    def __init__(self, include_default_executors: bool = True, executors: typing.List[AbstractCommandExecutor] | None = None) -> None:
         super().__init__()
-        self.__executors = [ BuiltInCommandExecutor(), ShellCommandExecutor() ] if executors is None else executors
+        self.__executors = []
+        if include_default_executors:
+            self.__executors.append(BuiltInCommandExecutor())
+            self.__executors.append(ShellCommandExecutor())
+
+        for executor in executors:
+            self.__executors.append(executor)
 
     def run(self, command_line: str) -> None:
         command_executed = False
