@@ -23,7 +23,7 @@ class AbstractCommandExecutor(abc.ABC):
         pass
 
 
-class __BuiltInCommandExecutor(AbstractCommandExecutor):
+class BuiltInCommandExecutor(AbstractCommandExecutor):
 
     def __init__(self) -> None:
         super().__init__()
@@ -50,7 +50,7 @@ class __BuiltInCommandExecutor(AbstractCommandExecutor):
             raise CommandNotFoundException(source)
 
 
-class __ShellCommandExecutor(AbstractCommandExecutor):
+class ShellCommandExecutor(AbstractCommandExecutor):
 
     def __init__(self) -> None:
         super().__init__()
@@ -58,8 +58,8 @@ class __ShellCommandExecutor(AbstractCommandExecutor):
     def run(self, command_line: str) -> None:
         with subprocess.Popen(command_line, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
             with ThreadPoolExecutor(max_workers=2) as executor:
-                executor.submit(__ShellCommandExecutor.__process_stdout, process)
-                executor.submit(__ShellCommandExecutor.__process_stderr, process)
+                executor.submit(ShellCommandExecutor.__process_stdout, process)
+                executor.submit(ShellCommandExecutor.__process_stderr, process)
             
 
     @staticmethod
@@ -80,12 +80,12 @@ class ChainCommandExecutor(AbstractCommandExecutor):
         self.__executors = []
 
         if include_default_executors:
-            self.__executors.append(__BuiltInCommandExecutor())
+            self.__executors.append(BuiltInCommandExecutor())
 
         self.__executors.extend(executors)
 
         if include_default_executors:
-            self.__executors.append(__ShellCommandExecutor())
+            self.__executors.append(ShellCommandExecutor())
 
     def run(self, command_line: str) -> None:
         command_executed = False
