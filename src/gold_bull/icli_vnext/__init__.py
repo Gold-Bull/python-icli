@@ -143,6 +143,7 @@ class InteractiveConsole:
         try:
             await self.__executor.run(line)
         except ForwardToExecutorException as ex:
+            print(self.__prompt_new + ex.command)
             await self.__run_executor(ex.command)
 
     async def __run_command(self, line: str):
