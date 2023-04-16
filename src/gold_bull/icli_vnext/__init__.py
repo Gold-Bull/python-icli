@@ -8,7 +8,15 @@ import abc
 from concurrent.futures.thread import ThreadPoolExecutor
 
 
+class ForwardToExecutorException(Exception):
+
+    def __init__(self, command: str, *args: object) -> None:
+        super().__init__(*args)
+        self.command = command
+
+
 class CommandNotFoundException(Exception):
+
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
 
@@ -131,6 +139,12 @@ class InteractiveConsole:
         self.__buffer = []
         self.__continue_input = False
 
+    async def __run_executor(self, line: str):
+        try:
+            await self.__executor.run(line)
+        except ForwardToExecutorException as ex:
+            await self.__run_executor(ex.command)
+
     async def __run_command(self, line: str):
         more = False
         if line.endswith(' \\'):
@@ -139,7 +153,7 @@ class InteractiveConsole:
         self.__buffer.append(line)
         if not more:
             source = "\n".join(self.__buffer)
-            await self.__executor.run(source)
+            await self.__run_executor(source)
             self.__resetbuffer()
         
         self.__continue_input = more
