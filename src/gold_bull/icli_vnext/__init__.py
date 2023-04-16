@@ -10,9 +10,9 @@ from concurrent.futures.thread import ThreadPoolExecutor
 
 class ForwardToExecutorException(Exception):
 
-    def __init__(self, command: str, *args: object) -> None:
+    def __init__(self, commands: typing.List[str], *args: object) -> None:
         super().__init__(*args)
-        self.command = command
+        self.commands = commands
 
 
 class CommandNotFoundException(Exception):
@@ -143,8 +143,10 @@ class InteractiveConsole:
         try:
             await self.__executor.run(line)
         except ForwardToExecutorException as ex:
-            print(self.__prompt_new + ex.command)
-            await self.__run_executor(ex.command)
+            for command in ex.commands:
+                readline.add_history(command)
+                print(self.__prompt_new + command)
+                await self.__run_executor(command)
 
     async def __run_command(self, line: str):
         more = False
