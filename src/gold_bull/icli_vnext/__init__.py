@@ -19,7 +19,7 @@ class AbstractCommandExecutor(abc.ABC):
         super().__init__()
 
     @abc.abstractmethod
-    def run(self, command_line: str) -> None:
+    async def run(self, command_line: str) -> None:
         pass
 
 
@@ -42,7 +42,7 @@ class BuiltInCommandExecutor(AbstractCommandExecutor):
     def __exit(self, source: str) -> None:
         raise KeyboardInterrupt()
 
-    def run(self, source: str) -> None:
+    async def run(self, source: str) -> None:
         try:
             func = self.__built_in_cmd[source]
             func(source)
@@ -55,7 +55,7 @@ class ShellCommandExecutor(AbstractCommandExecutor):
     def __init__(self) -> None:
         super().__init__()
 
-    def run(self, command_line: str) -> None:
+    async def run(self, command_line: str) -> None:
         with subprocess.Popen(command_line, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
             with ThreadPoolExecutor(max_workers=2) as executor:
                 executor.submit(ShellCommandExecutor.__process_stdout, process)
@@ -82,17 +82,18 @@ class ChainCommandExecutor(AbstractCommandExecutor):
         if include_default_executors:
             self.__executors.append(BuiltInCommandExecutor())
 
-        self.__executors.extend(executors)
+        if executors is not None:
+            self.__executors.extend(executors)
 
         if include_default_executors:
             self.__executors.append(ShellCommandExecutor())
 
-    def run(self, command_line: str) -> None:
+    async def run(self, command_line: str) -> None:
         command_executed = False
 
         for executor in self.__executors:
             try:
-                executor.run(command_line)
+                await executor.run(command_line)
                 command_executed = True
                 break
             except CommandNotFoundException:
@@ -130,7 +131,7 @@ class InteractiveConsole:
         self.__buffer = []
         self.__continue_input = False
 
-    def __run_command(self, line: str):
+    async def __run_command(self, line: str):
         more = False
         if line.endswith(' \\'):
             line = line[:-2]
@@ -138,7 +139,7 @@ class InteractiveConsole:
         self.__buffer.append(line)
         if not more:
             source = "\n".join(self.__buffer)
-            self.__executor.run(source)
+            await self.__executor.run(source)
             self.__resetbuffer()
         
         self.__continue_input = more
@@ -146,7 +147,7 @@ class InteractiveConsole:
     def __write(self, data: str):
         print(data, file=sys.stderr)
 
-    def interact(self, exitmsg: str | None = None):
+    async def interact(self, exitmsg: str | None = None):
         while True:
             try:
                 prompt = self.__prompt_continue if self.__continue_input else self.__prompt_new
@@ -155,7 +156,7 @@ class InteractiveConsole:
                 except EOFError:
                     self.__write("\n")
                     break
-                self.__run_command(line)
+                await self.__run_command(line)
             except KeyboardInterrupt:
                 self.__resetbuffer()
                 break
