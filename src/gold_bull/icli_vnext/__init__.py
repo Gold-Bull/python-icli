@@ -10,13 +10,6 @@ import abc
 from concurrent.futures.thread import ThreadPoolExecutor
 
 
-class RunPythonScriptException(Exception):
-
-    def __init__(self, command: str, *args: object) -> None:
-        super().__init__(*args)
-        self.command = command
-
-
 class ForwardToExecutorException(Exception):
 
     def __init__(self, commands: typing.List[str], *args: object) -> None:
@@ -34,6 +27,10 @@ class AbstractCommandExecutor(abc.ABC):
 
     def __init__(self) -> None:
         super().__init__()
+
+    @abc.abstractmethod
+    def can_run_cmd(self, command_line: str) -> bool:
+        pass
 
     @abc.abstractmethod
     async def run(self, command_line: str) -> None:
@@ -59,12 +56,12 @@ class BuiltInCommandExecutor(AbstractCommandExecutor):
     def __exit(self, source: str) -> None:
         raise KeyboardInterrupt()
 
+    def can_run_cmd(self, source: str) -> bool:
+        return source in self.__built_in_cmd.keys()
+
     async def run(self, source: str) -> None:
-        try:
-            func = self.__built_in_cmd[source]
-            func(source)
-        except KeyError:
-            raise CommandNotFoundException(source)
+        func = self.__built_in_cmd[source]
+        func(source)
 
 
 class ShellCommandExecutor(AbstractCommandExecutor):
@@ -77,7 +74,9 @@ class ShellCommandExecutor(AbstractCommandExecutor):
             with ThreadPoolExecutor(max_workers=2) as executor:
                 executor.submit(ShellCommandExecutor.__process_stdout, process)
                 executor.submit(ShellCommandExecutor.__process_stderr, process)
-            
+
+    def can_run_cmd(self, source: str) -> bool:
+        return True
 
     @staticmethod
     def __process_stdout(process: subprocess.Popen):
@@ -88,6 +87,40 @@ class ShellCommandExecutor(AbstractCommandExecutor):
     def __process_stderr(process: subprocess.Popen):
         for line in process.stderr:
                 print(line.decode('utf8'), file=sys.stderr, end='')
+
+
+class PythonCommandExecutor(AbstractCommandExecutor):
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.__py_locals = {"__name__": "__console__", "__doc__": None}
+        self.__py_compiler = codeop.CommandCompiler()
+
+    def __py_write_err(self):
+        type, value, _ = sys.exc_info()
+        lines = traceback.format_exception_only(type, value)
+        print(''.join(lines), file=sys.stderr)
+
+    def can_run_cmd(self, command_line: str) -> bool:
+        return command_line.startswith('##python\n')
+
+    async def run(self, command_line: str) -> None:
+        if not command_line.endswith('\n'):
+            command_line = command_line + '\n'
+        
+        try:
+            code = self.__py_compiler(command_line, '', 'exec')
+        except (OverflowError, SyntaxError, ValueError):
+            self.__py_write_err()
+            return
+
+        if code is None:
+            return
+
+        try:
+            exec(code, self.__py_locals)
+        except:
+            self.__py_write_err()
 
 
 class ChainCommandExecutor(AbstractCommandExecutor):
@@ -103,21 +136,22 @@ class ChainCommandExecutor(AbstractCommandExecutor):
             self.__executors.extend(executors)
 
         if include_default_executors:
+            self.__executors.append(PythonCommandExecutor())
             self.__executors.append(ShellCommandExecutor())
 
-    async def run(self, command_line: str) -> None:
-        command_executed = False
-
+    def can_run_cmd(self, source: str) -> bool:
         for executor in self.__executors:
-            try:
-                await executor.run(command_line)
-                command_executed = True
-                break
-            except CommandNotFoundException:
-                pass
+            if executor.can_run_cmd(source):
+                return True
+        return False
 
-        if not command_executed:
-            raise CommandNotFoundException(command_line)
+    async def run(self, command_line: str) -> None:
+        for executor in self.__executors:
+            if executor.can_run_cmd(command_line):
+                await executor.run(command_line)
+                return
+        
+        raise CommandNotFoundException(command_line)
 
 
 class InteractiveConsole:
@@ -129,8 +163,6 @@ class InteractiveConsole:
         self.__resetbuffer()
         self.__init_history()
         self.__executor = ChainCommandExecutor() if command_executor is None else command_executor
-        self.__py_locals = {"__name__": "__console__", "__doc__": None}
-        self.__py_compiler = codeop.CommandCompiler()
 
     def __init_history(self) -> None:
         histfile = os.path.expanduser("~/.console-history")
@@ -150,28 +182,6 @@ class InteractiveConsole:
         self.__buffer = []
         self.__continue_input = False
 
-    def __py_write_err(self):
-        type, value, _ = sys.exc_info()
-        lines = traceback.format_exception_only(type, value)
-        print(''.join(lines), file=sys.stderr)
-
-    def __py_run(self, command_line: str) -> None:
-        if not command_line.endswith('\n'):
-            command_line = command_line + '\n'
-        try:
-            code = self.__py_compiler(command_line, '', 'exec')
-        except (OverflowError, SyntaxError, ValueError):
-            self.__py_write_err()
-            return
-
-        if code is None:
-            return
-
-        try:
-            exec(code, self.__py_locals)
-        except:
-            self.__py_write_err()
-
     async def __run_executor(self, line: str):
         try:
             await self.__executor.run(line)
@@ -180,8 +190,6 @@ class InteractiveConsole:
                 readline.add_history(command)
                 print(self.__prompt_new + command)
                 await self.__run_executor(command)
-        except RunPythonScriptException as ex1:
-            self.__py_run(ex1.command)
 
     async def __run_command(self, line: str):
         more = False
