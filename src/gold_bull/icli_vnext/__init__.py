@@ -36,6 +36,10 @@ class AbstractCommandExecutor(abc.ABC):
         super().__init__()
 
     @abc.abstractmethod
+    def can_run_cmd(self, command_line: str) -> bool:
+        pass
+
+    @abc.abstractmethod
     async def run(self, command_line: str) -> None:
         pass
 
@@ -59,12 +63,12 @@ class BuiltInCommandExecutor(AbstractCommandExecutor):
     def __exit(self, source: str) -> None:
         raise KeyboardInterrupt()
 
+    def can_run_cmd(self, source: str) -> bool:
+        return source in self.__built_in_cmd.keys()
+
     async def run(self, source: str) -> None:
-        try:
-            func = self.__built_in_cmd[source]
-            func(source)
-        except KeyError:
-            raise CommandNotFoundException(source)
+        func = self.__built_in_cmd[source]
+        func(source)
 
 
 class ShellCommandExecutor(AbstractCommandExecutor):
@@ -77,7 +81,9 @@ class ShellCommandExecutor(AbstractCommandExecutor):
             with ThreadPoolExecutor(max_workers=2) as executor:
                 executor.submit(ShellCommandExecutor.__process_stdout, process)
                 executor.submit(ShellCommandExecutor.__process_stderr, process)
-            
+
+    def can_run_cmd(self, source: str) -> bool:
+        return True
 
     @staticmethod
     def __process_stdout(process: subprocess.Popen):
@@ -105,19 +111,19 @@ class ChainCommandExecutor(AbstractCommandExecutor):
         if include_default_executors:
             self.__executors.append(ShellCommandExecutor())
 
-    async def run(self, command_line: str) -> None:
-        command_executed = False
-
+    def can_run_cmd(self, source: str) -> bool:
         for executor in self.__executors:
-            try:
-                await executor.run(command_line)
-                command_executed = True
-                break
-            except CommandNotFoundException:
-                pass
+            if executor.can_run_cmd(source):
+                return True
+        return False
 
-        if not command_executed:
-            raise CommandNotFoundException(command_line)
+    async def run(self, command_line: str) -> None:
+        for executor in self.__executors:
+            if executor.can_run_cmd(command_line):
+                await executor.run(command_line)
+                return
+        
+        raise CommandNotFoundException(command_line)
 
 
 class InteractiveConsole:
