@@ -93,13 +93,19 @@ class PythonCommandExecutor(AbstractCommandExecutor):
 
     def __init__(self) -> None:
         super().__init__()
-        self.__py_locals = {"__name__": "__console__", "__doc__": None}
-        self.__py_compiler = codeop.CommandCompiler()
+        self._py_locals = {"__name__": "__console__", "__doc__": None}
+        self._py_compiler = codeop.CommandCompiler()
 
     def __py_write_err(self):
         type, value, _ = sys.exc_info()
         lines = traceback.format_exception_only(type, value)
         print(''.join(lines), file=sys.stderr)
+
+    def _get_globals(self):
+        return globals()
+
+    def _get_locals(self):
+        return self._py_locals
 
     def can_run_cmd(self, command_line: str) -> bool:
         return command_line.startswith('##python\n')
@@ -109,7 +115,7 @@ class PythonCommandExecutor(AbstractCommandExecutor):
             command_line = command_line + '\n'
         
         try:
-            code = self.__py_compiler(command_line, '', 'exec')
+            code = self._py_compiler(command_line, '', 'exec')
         except (OverflowError, SyntaxError, ValueError):
             self.__py_write_err()
             return
@@ -118,7 +124,7 @@ class PythonCommandExecutor(AbstractCommandExecutor):
             return
 
         try:
-            exec(code, self.__py_locals)
+            exec(code, self._get_globals(), self._get_locals())
         except:
             self.__py_write_err()
 
