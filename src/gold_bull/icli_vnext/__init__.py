@@ -10,13 +10,6 @@ import abc
 from concurrent.futures.thread import ThreadPoolExecutor
 
 
-class RunPythonScriptException(Exception):
-
-    def __init__(self, command: str, *args: object) -> None:
-        super().__init__(*args)
-        self.command = command
-
-
 class ForwardToExecutorException(Exception):
 
     def __init__(self, commands: typing.List[str], *args: object) -> None:
@@ -96,6 +89,40 @@ class ShellCommandExecutor(AbstractCommandExecutor):
                 print(line.decode('utf8'), file=sys.stderr, end='')
 
 
+class PythonCommandExecutor(AbstractCommandExecutor):
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.__py_locals = {"__name__": "__console__", "__doc__": None}
+        self.__py_compiler = codeop.CommandCompiler()
+
+    def __py_write_err(self):
+        type, value, _ = sys.exc_info()
+        lines = traceback.format_exception_only(type, value)
+        print(''.join(lines), file=sys.stderr)
+
+    def can_run_cmd(self, command_line: str) -> bool:
+        return command_line.startswith('##python\n')
+
+    async def run(self, command_line: str) -> None:
+        if not command_line.endswith('\n'):
+            command_line = command_line + '\n'
+        
+        try:
+            code = self.__py_compiler(command_line, '', 'exec')
+        except (OverflowError, SyntaxError, ValueError):
+            self.__py_write_err()
+            return
+
+        if code is None:
+            return
+
+        try:
+            exec(code, self.__py_locals)
+        except:
+            self.__py_write_err()
+
+
 class ChainCommandExecutor(AbstractCommandExecutor):
 
     def __init__(self, include_default_executors: bool = True, executors: typing.List[AbstractCommandExecutor] | None = None) -> None:
@@ -109,6 +136,7 @@ class ChainCommandExecutor(AbstractCommandExecutor):
             self.__executors.extend(executors)
 
         if include_default_executors:
+            self.__executors.append(PythonCommandExecutor())
             self.__executors.append(ShellCommandExecutor())
 
     def can_run_cmd(self, source: str) -> bool:
@@ -135,8 +163,6 @@ class InteractiveConsole:
         self.__resetbuffer()
         self.__init_history()
         self.__executor = ChainCommandExecutor() if command_executor is None else command_executor
-        self.__py_locals = {"__name__": "__console__", "__doc__": None}
-        self.__py_compiler = codeop.CommandCompiler()
 
     def __init_history(self) -> None:
         histfile = os.path.expanduser("~/.console-history")
@@ -156,28 +182,6 @@ class InteractiveConsole:
         self.__buffer = []
         self.__continue_input = False
 
-    def __py_write_err(self):
-        type, value, _ = sys.exc_info()
-        lines = traceback.format_exception_only(type, value)
-        print(''.join(lines), file=sys.stderr)
-
-    def __py_run(self, command_line: str) -> None:
-        if not command_line.endswith('\n'):
-            command_line = command_line + '\n'
-        try:
-            code = self.__py_compiler(command_line, '', 'exec')
-        except (OverflowError, SyntaxError, ValueError):
-            self.__py_write_err()
-            return
-
-        if code is None:
-            return
-
-        try:
-            exec(code, self.__py_locals)
-        except:
-            self.__py_write_err()
-
     async def __run_executor(self, line: str):
         try:
             await self.__executor.run(line)
@@ -186,8 +190,6 @@ class InteractiveConsole:
                 readline.add_history(command)
                 print(self.__prompt_new + command)
                 await self.__run_executor(command)
-        except RunPythonScriptException as ex1:
-            self.__py_run(ex1.command)
 
     async def __run_command(self, line: str):
         more = False
