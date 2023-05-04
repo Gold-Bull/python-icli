@@ -1,10 +1,7 @@
 import atexit
 import codeop
 import os
-if os.name == "nt":
-    import pyreadline3 as readline
-else:
-    import readline
+import readline
 import sys
 import subprocess
 import traceback
