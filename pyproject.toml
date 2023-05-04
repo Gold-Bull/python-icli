@@ -34,7 +34,7 @@ license = {file = "LICENSE"}
 name = "icli-vnext"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.7, <4"
-version = "0.0.13"
+version = "0.0.14"
 
 
 [project.urls]
