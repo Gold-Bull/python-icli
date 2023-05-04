@@ -1,7 +1,10 @@
 import atexit
 import codeop
 import os
-import readline
+if os.name == "nt":
+    import pyreadline3 as readline
+else:
+    import readline
 import sys
 import subprocess
 import traceback
@@ -113,7 +116,7 @@ class PythonCommandExecutor(AbstractCommandExecutor):
     async def run(self, command_line: str) -> None:
         if not command_line.endswith('\n'):
             command_line = command_line + '\n'
-        
+
         try:
             code = self._py_compiler(command_line, '', 'exec')
         except (OverflowError, SyntaxError, ValueError):
@@ -156,7 +159,7 @@ class ChainCommandExecutor(AbstractCommandExecutor):
             if executor.can_run_cmd(command_line):
                 await executor.run(command_line)
                 return
-        
+
         raise CommandNotFoundException(command_line)
 
 
@@ -207,7 +210,7 @@ class InteractiveConsole:
             source = "\n".join(self.__buffer)
             await self.__run_executor(source)
             self.__resetbuffer()
-        
+
         self.__continue_input = more
 
     def __write(self, data: str):

@@ -4,35 +4,37 @@ build-backend = "setuptools.build_meta"
 
 [project]
 authors = [
-    {name = "Sailesh Bellamkonda", email = "4201725+SaileshBellamkonda@users.noreply.github.com"},
+  {name = "Sailesh Bellamkonda", email = "4201725+SaileshBellamkonda@users.noreply.github.com"},
 ]
 classifiers = [
-    # see https://pypi.org/classifiers/
-    'Development Status :: 3 - Alpha',
-    'Environment :: Console',
-    'Intended Audience :: Developers',
-    'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
-    'Operating System :: OS Independent',
-    'Programming Language :: Python :: 3 :: Only',
-    'Programming Language :: Python :: 3.7',
-    'Programming Language :: Python :: 3.8',
-    'Programming Language :: Python :: 3.9',
-    'Programming Language :: Python :: 3.10',
-    'Programming Language :: Python :: 3.11',
-    'Topic :: System :: Shells',
-    'Topic :: Terminals',
+  # see https://pypi.org/classifiers/
+  'Development Status :: 3 - Alpha',
+  'Environment :: Console',
+  'Intended Audience :: Developers',
+  'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
+  'Operating System :: OS Independent',
+  'Programming Language :: Python :: 3 :: Only',
+  'Programming Language :: Python :: 3.7',
+  'Programming Language :: Python :: 3.8',
+  'Programming Language :: Python :: 3.9',
+  'Programming Language :: Python :: 3.10',
+  'Programming Language :: Python :: 3.11',
+  'Topic :: System :: Shells',
+  'Topic :: Terminals',
 ]
-dependencies = []
+dependencies = [
+  'pyreadline3 >= 3.4.1 ; platform_system == "Windows"',
+]
 description = "Interactive CLI for Python"
 keywords = [
-    "icli",
-    "cli"
+  "icli",
+  "cli"
 ]
 license = {file = "LICENSE"}
 name = "icli-vnext"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.7, <4"
-version = "0.0.12"
+version = "0.0.13"
 
 
 [project.urls]
